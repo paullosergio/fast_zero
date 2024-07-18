@@ -1,5 +1,7 @@
 from http import HTTPStatus
 
+import pytest
+
 from fast_zero.schemas import UserPublic
 
 
@@ -27,7 +29,8 @@ def test_create_user(client):
     }
 
 
-def test_create_user_username_exist(client, user):
+@pytest.mark.usefixtures('user')
+def test_create_user_username_exist(client):
     response = client.post(
         '/users/',
         json={
@@ -40,7 +43,8 @@ def test_create_user_username_exist(client, user):
     assert response.json() == {'detail': 'Username already exists'}
 
 
-def test_create_user_email_exist(client, user):
+@pytest.mark.usefixtures('user')
+def test_create_user_email_exist(client):
     response = client.post(
         '/users/',
         json={
@@ -84,9 +88,10 @@ def test_read_users_with_users(client, user):
     assert response.json() == {'users': [user_schema]}
 
 
-def test_update_user(client, user):
+def test_update_user(client, user, token):
     response = client.put(
-        '/users/1',
+        f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'paulo',
             'email': 'paulo@example.com',
@@ -97,30 +102,87 @@ def test_update_user(client, user):
     assert response.json() == {
         'username': 'paulo',
         'email': 'paulo@example.com',
-        'id': 1,
+        'id': user.id,
     }
 
 
-def test_update_user_not_found(client, user):
+def test_update_different_id(client, token):
     response = client.put(
         '/users/10',
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'paulo',
             'email': 'paulo@example.com',
             'password': 'secret',
         },
     )
-    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-def test_delete_user(client, user):
-    response = client.delete('/users/1')
+def test_update_(client, user, token):
+    client.delete(
+        f'/users/{user.id}', headers={'Authorization': f'Bearer {token}'}
+    )
+    response = client.put(
+        f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'username': 'paulo',
+            'email': 'paulo@example.com',
+            'password': 'secret',
+        },
+    )
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json() == {'detail': 'Could not validate credentials'}
+
+
+def test_delete_user(client, user, token):
+    response = client.delete(
+        f'/users/{user.id}', headers={'Authorization': f'Bearer {token}'}
+    )
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {'message': 'User deleted'}
 
 
-def test_delete_user_not_found(client):
-    response = client.delete('/users/10')
+@pytest.mark.usefixtures('user')
+def test_delete_user_different_id(client, token):
+    response = client.delete(
+        '/users/10', headers={'Authorization': f'Bearer {token}'}
+    )
 
-    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.json() == {'detail': 'Not enough permissions'}
+
+
+def test_jwt_invalid_token(client):
+    response = client.delete(
+        '/users/1', headers={'Authorization': 'Bearer token-invalido'}
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json() == {'detail': 'Could not validate credentials'}
+
+
+def test_get_token(client, user):
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': user.clean_password},
+    )
+
+    token = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert token['token_type'] == 'Bearer'
+    assert 'access_token' in token
+
+
+def test_get_token_exception(client, user):
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': 'incorrect password'},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.json() == {
+        'detail': 'Incorrect email or password',
+    }
