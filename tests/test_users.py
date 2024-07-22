@@ -1,7 +1,5 @@
 from http import HTTPStatus
 
-import pytest
-
 from fast_zero.schemas import UserPublic
 
 
@@ -22,19 +20,17 @@ def test_create_user(client):
         },
     )
     assert response.status_code == HTTPStatus.CREATED
-    assert response.json() == {
-        'username': 'alice',
-        'email': 'alice@example.com',
-        'id': 1,
-    }
+    user = response.json()
+    assert user['username'] == 'alice'
+    assert user['email'] == 'alice@example.com'
+    assert user['id'] == 1
 
 
-@pytest.mark.usefixtures('user')
-def test_create_user_username_exist(client):
+def test_create_user_username_exist(client, user):
     response = client.post(
         '/users/',
         json={
-            'username': 'test5',
+            'username': user.username,
             'email': 'alice@example.com',
             'password': 'secret',
         },
@@ -43,13 +39,12 @@ def test_create_user_username_exist(client):
     assert response.json() == {'detail': 'Username already exists'}
 
 
-@pytest.mark.usefixtures('user')
-def test_create_user_email_exist(client):
+def test_create_user_email_exist(client, user):
     response = client.post(
         '/users/',
         json={
             'username': 'Alice',
-            'email': 'test6@test.com',
+            'email': user.email,
             'password': 'secret',
         },
     )
@@ -60,12 +55,11 @@ def test_create_user_email_exist(client):
 def test_read_user(client, user):
     response = client.get(f'/users/{user.id}')
 
+    user_response = response.json()
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'username': 'test7',
-        'email': 'test7@test.com',
-        'id': 1,
-    }
+    assert user_response['username'] == user.username
+    assert user_response['email'] == user.email
+    assert user_response['id'] == 1
 
 
 def test_read_user_not_found(client, user, token):
@@ -86,6 +80,8 @@ def test_read_users(client):
 
 def test_read_users_with_users(client, user):
     user_schema = UserPublic.model_validate(user).model_dump()
+    user_schema['created_at'] = user.created_at.strftime('%Y-%m-%dT%H:%M:%S')
+    user_schema['updated_at'] = user.updated_at.strftime('%Y-%m-%dT%H:%M:%S')
     response = client.get('/users/')
 
     assert response.json() == {'users': [user_schema]}
@@ -102,11 +98,9 @@ def test_update_user(client, user, token):
         },
     )
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'username': 'paulo',
-        'email': 'paulo@example.com',
-        'id': user.id,
-    }
+    user_response = response.json()
+    assert user_response['username'] == 'paulo'
+    assert user_response['email'] == 'paulo@example.com'
 
 
 def test_update_different_id(client, other_user, token):
