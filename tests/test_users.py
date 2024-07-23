@@ -80,8 +80,12 @@ def test_read_users(client):
 
 def test_read_users_with_users(client, user):
     user_schema = UserPublic.model_validate(user).model_dump()
-    user_schema['created_at'] = user.created_at.strftime('%Y-%m-%dT%H:%M:%S')
-    user_schema['updated_at'] = user.updated_at.strftime('%Y-%m-%dT%H:%M:%S')
+    user_schema['created_at'] = user.created_at.strftime(
+        '%Y-%m-%dT%H:%M:%S.%f'
+    )
+    user_schema['updated_at'] = user.updated_at.strftime(
+        '%Y-%m-%dT%H:%M:%S.%f'
+    )
     response = client.get('/users/')
 
     assert response.json() == {'users': [user_schema]}
