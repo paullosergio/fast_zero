@@ -1,4 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.dialects.postgresql.base import PGDialect
+
+PGDialect._get_server_version_info = lambda *args: (16, 3)
 
 
 class Settings(BaseSettings):
